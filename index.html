@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Customization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        #product-preview {
+            width: 400px;
+            height: 400px;
+            border: 2px solid #ccc;
+            margin: 20px auto;
+            position: relative;
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        .resizable {
+            position: absolute;
+            cursor: move;
+            max-width: 100%;
+            max-height: 100%;
+            overflow: hidden;
+        }
+        .resizable svg {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .resizer {
+            width: 10px;
+            height: 10px;
+            background: #000;
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            cursor: se-resize;
+        }
+        .control-panel {
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Customize Your Product</h1>
+    <div class="control-panel">
+        <label for="product-select">Select Product: </label>
+        <select id="product-select">
+            <option value="https://shopdestihl.com/cdn/shop/products/BlankSlateCoaster_1024x1024@2x.jpg?v=1664898288">Slate Coaster</option>
+            <option value="https://via.placeholder.com/400?text=Bottle+Opener">Stainless Steel Bottle Opener</option>
+        </select>
+        <button onclick="loadProduct()">Load Product</button>
+    </div>
+    <div class="control-panel">
+        <input type="file" id="image-upload" accept="image/*" onchange="uploadImage()">
+    </div>
+    <div id="product-preview"></div>
+
+    <!-- Pica for image processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pica/6.1.1/pica.min.js"></script>
+    <!-- Include potrace.js from GitHub -->
+    <script src="https://raw.githubusercontent.com/kilobtye/Potrace/master/dist/potrace.js"></script>
+    <script>
+        let currentProduct = '';
+
+        function loadProduct() {
+            const productSelect = document.getElementById('product-select');
+            currentProduct = productSelect.value;
+            const previewArea = document.getElementById('product-preview');
+            previewArea.style.backgroundImage = `url(${currentProduct})`;
+            previewArea.innerHTML = ''; // Clear previous customizations
+        }
+
+        function uploadImage() {
+            const input = document.getElementById('image-upload');
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    processImage(e.target.result);
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        async function processImage(imageSrc) {
+            const img = new Image();
+            img.src = imageSrc;
+            img.crossOrigin = "Anonymous"; // Ensure CORS issues are handled
+            img.onload = async function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+
+                // Convert to black and white
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                    const avg = (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) / 3;
+                    imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = avg;
+                    imageData.data[i + 3] = imageData.data[i] > 180 ? 0 : 255; // Remove whites
+                }
+                ctx.putImageData(imageData, 0, 0);
+
+                // Get the black and white data URL
+                const bwDataUrl = canvas.toDataURL('image/png');
+
+                // Vectorize using Potrace
+                Potrace.loadImageFromUrl(bwDataUrl, function() {
+                    this.setParameter({
+                        turnpolicy: "black",
+                        turdsize: 100,
+                        optcurve: true,
+                        alphamax: 1,
+                        opttolerance: 0.2
+                    });
+                    this.process(function() {
+                        const svg = this.getSVG(1);
+                        addSvgToPreview(svg);
+                    });
+                });
+            };
+            img.onerror = function() {
+                alert('Error loading the image. Please try another image.');
+            }
+        }
+
+        function addSvgToPreview(svg) {
+            const div = document.createElement('div');
+            div.className = 'resizable';
+            div.innerHTML = svg;
+
+            // Make SVG resizable and draggable
+            const resizer = document.createElement('div');
+            resizer.className = 'resizer';
+            makeElementDraggable(div);
+            makeElementResizable(div, resizer);
+            div.appendChild(resizer);
+
+            // Append to preview area
+            document.getElementById('product-preview').appendChild(div);
+        }
+
+        function makeElementDraggable(element) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            element.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                element.style.top = (element.offsetTop - pos2) + "px";
+                element.style.left = (element.offsetLeft - pos1) + "px";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+
+        function makeElementResizable(element, resizer) {
+            let originalWidth = 0, originalHeight = 0, originalX = 0, originalY = 0, originalMouseX = 0, originalMouseY = 0;
+            
+            resizer.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                originalWidth = parseFloat(getComputedStyle(element, null).getPropertyValue('width').replace('px', ''));
+                originalHeight = parseFloat(getComputedStyle(element, null).getPropertyValue('height').replace('px', ''));
+                originalX = element.getBoundingClientRect().left;
+                originalY = element.getBoundingClientRect().top;
+                originalMouseX = e.pageX;
+                originalMouseY = e.pageY;
+                document.addEventListener('mousemove', resizeElement);
+                document.addEventListener('mouseup', stopResize);
+            });
+            
+            function resizeElement(e) {
+                const width = originalWidth + (e.pageX - originalMouseX);
+                const height = originalHeight + (e.pageY - originalMouseY);
+                if (width > 50) element.style.width = width + 'px';
+                if (height > 50) element.style.height = height + 'px';
+            }
+            
+            function stopResize() {
+                document.removeEventListener('mousemove', resizeElement);
+                document.removeEventListener('mouseup', stopResize);
+            }
+        }
+    </script>
+</body>
+</html>
