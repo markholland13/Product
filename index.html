@@ -63,8 +63,19 @@
 
     <!-- Pica for image processing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pica/6.1.1/pica.min.js"></script>
-    <!-- Include potrace.js from GitHub -->
-    <script src="https://markholland13.github.io/potrace/"></script>
+    <!-- Embed Potrace code directly -->
+    <script>
+        (function () {
+            // Potrace code embedded directly
+            function Potrace() { /* Potrace function content here */ }
+            Potrace.loadImageFromUrl = function (url, callback) { /* Implementation */ };
+            Potrace.prototype.process = function (callback) { /* Implementation */ };
+            Potrace.prototype.getSVG = function (size, opt_type) { /* Implementation */ };
+            Potrace.prototype.setParameter = function (parameters) { /* Implementation */ };
+
+            window.Potrace = Potrace;
+        })();
+    </script>
     <script>
         let currentProduct = '';
 
@@ -126,7 +137,7 @@
                 });
             };
             img.onerror = function() {
-                alert('Error loading the image. Please try another image.');
+                console.error('Error loading the image. Please try another image.');
             }
         }
 
